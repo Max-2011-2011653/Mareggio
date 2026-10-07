@@ -21,8 +21,7 @@ input{width:100px;padding:6px 8px}svg{width:100%;height:auto;display:block}
 <div class="pn"><div class="m">Posizione di pesca</div>
 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
 <input id="la" inputmode="decimal" aria-label="Latitudine"><input id="lo" inputmode="decimal" aria-label="Longitudine">
-<button id="set">Aggiorna</button><button id="gps">Usa il GPS</button></div>
-<a id="maps" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;color:#5cc8e6;font-size:14px;text-decoration:none">📍 Apri su Google Maps</a></div>
+<button id="set">Aggiorna</button><button id="gps">Usa il GPS</button></div><a id="mp" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;color:var(--ac)">Apri la posizione su Google Maps</a></div>
 <div id="app"></div></main>
 <script>
 const $=s=>document.querySelector(s),R=Math.PI/180,DM=864e5,H1=36e5,E=R*23.4397,TP=2*Math.PI;
@@ -40,6 +39,9 @@ const CP=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ON
 const phase=t=>{const d=dd(t);return((((moonL(d)-sunL(d))/TP)%1)+1)%1};
 const pname=p=>p<.03||p>.97?'Luna nuova':p<.22?'Crescente':p<.28?'Primo quarto':p<.47?'Gibbosa crescente':p<.53?'Luna piena':p<.72?'Gibbosa calante':p<.78?'Ultimo quarto':'Calante';
 const at=(S,t)=>{if(!S)return null;const i=(t-S.t0)/H1;if(i<0||i>S.v.length-1)return null;const a=Math.floor(i),b=Math.min(a+1,S.v.length-1),x=S.v[a],y=S.v[b];return x==null||y==null?null:x+(y-x)*(i-a)};
+const atN=(S,t)=>{if(!S)return null;const i=Math.round((t-S.t0)/H1);return i<0||i>=S.v.length?null:S.v[i]};
+const arrow=d=>d==null?'':`<svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:-2px;transform:rotate(${d+180}deg)"><path d="M12 2l6 18-6-4-6 4z" fill="#4fd1b5"/></svg>`;
+const bf=k=>[1,4,7,11,17,22,28,34,41,48,56,64].filter(x=>k>=x).length;
 const tide=t=>{const v=D.hasSea?at(D.sea,t):null;return v!=null?v:.22*Math.cos(2*body('m',t).H)};
 function events(t0,t1){const o=[],A=[];for(let t=t0-3*H1;t<=t1+3*H1;t+=3e5)A.push([t,body('m',t).alt,body('s',t).alt]);
 for(let i=1;i<A.length-1;i++){const a=A[i-1],b=A[i],c=A[i+1];
@@ -73,30 +75,36 @@ let mx=.001;for(let t=t0;t<t1;t+=H1)mx=Math.max(mx,Math.abs(tide(t+18e5)-tide(t-
 const sc=[];for(let h=0;h<24;h++)sc.push(score(sp,t0+h*H1+H1/2,ev,mx));
 const top=Math.max(...sc),th=Math.max(55,top-12),win=[];let i=0;while(i<24){if(sc[i]>=th){let j=i;while(j+1<24&&sc[j+1]>=th)j++;win.push({a:i,b:j+1,p:Math.max(...sc.slice(i,j+1))});i=j+1}else i++}
 win.sort((x,y)=>y.p-x.p);
+const hn=new Date().getHours(),all=Object.keys(SP).map(k=>{const s=Array.from({length:24},(_,h)=>score(k,t0+h*H1+H1/2,ev,mx)),m=Math.max(...s),th2=Math.max(55,m-12),w=[];let i=0;while(i<24){if(s[i]>=th2){let j=i;while(j+1<24&&s[j+1]>=th2)j++;w.push({a:i,b:j+1,p:Math.max(...s.slice(i,j+1))});i=j+1}else i++}w.sort((x,y)=>y.p-x.p);return{k,w,m,n:s[hn]}});
+const lv=v=>v>=70?['Ottimo','#4fd1b5']:v>=50?['Buono','#f2b84b']:['Debole','#8fa9b0'];
 const tn=tide(now),tr=tide(now+9e5)-tide(now-9e5),ms=body('m',now),ss=body('s',now),ph=phase(now),ill=Math.round((1-Math.cos(TP*ph))/2*100);
-const pr=at(D.pr,now),dp=pr!=null&&at(D.pr,now-3*H1)!=null?pr-at(D.pr,now-3*H1):null,wv=at(D.wave,now),wp=at(D.per,now);
+const pr=at(D.pr,now),dp=pr!=null&&at(D.pr,now-3*H1)!=null?pr-at(D.pr,now-3*H1):null,wv=at(D.wave,now),wp=at(D.per,now),wsn=at(D.ws,now),wgn=at(D.wg,now),wdn=atN(D.wd,now),wdr=atN(D.wdir,now);
 let nx='';{let pv=tide(t0),pd=0;const ex=[];for(let t=t0+9e5;t<=t1+H1;t+=9e5){const v=tide(t),d=v-pv;if(pd>0&&d<=0)ex.push('Alta '+hm(t-9e5));if(pd<0&&d>=0)ex.push('Bassa '+hm(t-9e5));if(d!==0)pd=d;pv=v}nx=ex.slice(0,4).join(' · ')}
 const dn=['Oggi','Domani'];
 $('#app').innerHTML=`<div class="pn"><h2>Adesso · ${hm(now)}</h2><div class="g">
 <div><b>${(tn>=0?'+':'')+tn.toFixed(2)} m</b><span class="m">Marea ${tr>0?'in salita':'in discesa'}${D.hasSea?'':' (stima)'}</span></div>
 <div><b>${pr!=null?Math.round(pr):'–'} hPa</b><span class="m">${dp==null?'':dp<=-1?'In calo ↓ ('+dp.toFixed(1)+' in 3 h)':dp>=1?'In salita ↑ (+'+dp.toFixed(1)+' in 3 h)':'Stabile'}</span></div>
-<div><b>${wv!=null?wv.toFixed(1)+' m':'–'}</b><span class="m">Onda${wp!=null?', periodo '+wp.toFixed(0)+' s':''}</span></div>
+<div><b>${wv!=null?wv.toFixed(1)+' m':'–'} ${arrow(wdr)}</b><span class="m">Onda${wdr!=null?' da '+cp(wdr):''}${wp!=null?' · '+wp.toFixed(0)+' s':''}</span></div>
+<div><b>${wsn!=null?Math.round(wsn)+' nd':'–'} ${arrow(wdn)}</b><span class="m">Vento${wdn!=null?' da '+cp(wdn)+' ('+Math.round(wdn)+'°)':''}</span></div>
+<div><b>${wgn!=null?Math.round(wgn)+' nd':'–'}</b><span class="m">Raffiche${wsn!=null?' · forza '+bf(wsn)+' Beaufort':''}</span></div>
 <div><b>${ill}%</b><span class="m">${pname(ph)}</span></div>
 <div><b>${Math.round(ms.alt)}° ${cp(ms.az)}</b><span class="m">Luna, azimut ${Math.round(ms.az)}°</span></div>
 <div><b>${Math.round(ss.alt)}° ${cp(ss.az)}</b><span class="m">Sole, azimut ${Math.round(ss.az)}°</span></div></div></div>
 <div class="tabs">${dn.map((n,k)=>`<button class="${k==day?'on':''}" data-d="${k}">${n}</button>`).join('')}</div>
+<div class="pn"><h2>Migliori momenti per specie · ${['Oggi','Domani'][day]}</h2>${all.map(o=>{const l=lv(o.n);return `<div class="w" data-s="${o.k}" style="cursor:pointer;gap:10px"><span><b>${SP[o.k].n}</b>${day==0?`<br><span style="color:${l[1]}">● ora: ${l[0]}</span>`:''}</span><span style="text-align:right">${o.w.length?o.w.slice(0,2).map(w=>`${pad(w.a)}:00–${pad(w.b)}:00 <b style="color:${lv(w.p)[1]}">${w.p}</b>`).join('<br>'):'<span class="m">nessuna finestra buona</span>'}</span></div>`}).join('')}<div class="m" style="margin-top:8px">Punteggio da 0 a 100. Tocca una specie per vedere il grafico orario.</div></div>
 <div class="pn"><h2>Quando pescare</h2><div class="tabs">${Object.keys(SP).map(k=>`<button class="${k==sp?'on':''}" data-s="${k}">${SP[k].n}</button>`).join('')}</div>
 ${bars(sc,t0)}<div class="m" style="margin-top:6px">${win.length?win.slice(0,3).map(w=>`<b style="color:var(--tx)">${pad(w.a)}:00–${pad(w.b)}:00</b> (${w.p}/100)`).join(' · '):'Nessuna finestra davvero buona: giornata debole.'}</div>
 <div class="m" style="margin-top:6px">Punteggio da luce, movimento di marea, onda, pressione e periodi solunari.</div></div>
 <div class="pn"><h2>Marea</h2>${chart(tide,t0,t1,{c:'#5aa9d6',dp:2,l:'Marea'})}<div class="m">${nx}</div></div>
 <div class="pn"><h2>Sole e luna</h2>${ev.filter(e=>e.t>=t0&&e.t<t1).map(e=>`<div class="w"><span>${e.n}</span><b>${hm(e.t)}${e.k=='M'?' · periodo maggiore':e.k=='m'?' · periodo minore':''}</b></div>`).join('')}</div>
 <div class="pn"><h2>Pressione, ultime 24 h e prossime 24 h</h2>${chart(t=>at(D.pr,t),now-DM,now+DM,{c:'#f2b84b',dp:0,l:'Pressione'})}</div>
+<div class="pn"><h2>Vento (nodi)</h2>${chart(t=>at(D.ws,t),t0,t1,{c:'#c9d6df',dp:0,l:'Vento'})}<div class="m" style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px">${[0,3,6,9,12,15,18,21].map(h=>{const t=t0+h*H1,v=at(D.ws,t);return v==null?'':`<span>${pad(h)}h ${arrow(atN(D.wd,t))} ${Math.round(v)}</span>`}).join('')}</div></div>
 <div class="pn"><h2>Moto ondoso (m)</h2>${chart(t=>at(D.wave,t),t0,t1,{c:'#4fd1b5',dp:1,l:'Onda'})}</div>
+<div class="pn"><h2>Webcam · Bari, Pane e Pomodoro</h2><p class="m" style="margin:0 0 10px">Vista in diretta sulla spiaggia e sul lungomare. È fissa su Bari e non cambia con il GPS.</p><a href="https://www.skylinewebcams.com/it/webcam/italia/puglia/bari/spiaggia-di-bari.html" target="_blank" rel="noopener" style="display:inline-block;background:var(--ac);color:#06201a;font-weight:600;padding:10px 16px;border-radius:10px;text-decoration:none">Apri la webcam</a></div>
 <p class="m">Dati: Open-Meteo (onde, livello del mare, pressione). Sole e luna calcolati sul telefono.</p>`}
-function mapLink(){const m=$('#maps');if(m){m.href=`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`;m.textContent=`📍 ${(+loc.lat).toFixed(4)}, ${(+loc.lng).toFixed(4)} · Apri su Google Maps`}}
-async function load(){$('#sub').textContent='Aggiorno i dati…';mapLink();const q=`latitude=${loc.lat}&longitude=${loc.lng}&timezone=auto&past_days=1&forecast_days=3`;
-try{const[m,f]=await Promise.all([fetch(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=wave_height,wave_period,sea_level_height_msl`).then(r=>r.json()),fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=pressure_msl`).then(r=>r.json())]);
-const s=(h,k)=>({t0:+new Date(h.time[0]),v:h[k]});D={wave:s(m.hourly,'wave_height'),per:s(m.hourly,'wave_period'),sea:s(m.hourly,'sea_level_height_msl'),pr:s(f.hourly,'pressure_msl')};
+async function load(){$('#sub').textContent='Aggiorno i dati…';$('#mp').href=`https://www.google.com/maps?q=${loc.lat},${loc.lng}`;const q=`latitude=${loc.lat}&longitude=${loc.lng}&timezone=auto&past_days=1&forecast_days=3`;
+try{const[m,f]=await Promise.all([fetch(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=wave_height,wave_period,wave_direction,sea_level_height_msl`).then(r=>r.json()),fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=pressure_msl,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kn`).then(r=>r.json())]);
+const s=(h,k)=>({t0:+new Date(h.time[0]),v:h[k]});D={wave:s(m.hourly,'wave_height'),per:s(m.hourly,'wave_period'),sea:s(m.hourly,'sea_level_height_msl'),pr:s(f.hourly,'pressure_msl'),ws:s(f.hourly,'wind_speed_10m'),wg:s(f.hourly,'wind_gusts_10m'),wd:s(f.hourly,'wind_direction_10m'),wdir:s(m.hourly,'wave_direction')};
 D.hasSea=D.sea.v.some(x=>x!=null);try{localStorage.setItem('mg_d',JSON.stringify({loc,D}))}catch(e){}$('#sub').textContent=`Aggiornato alle ${hm(Date.now())} · ${loc.lat.toFixed(3)}, ${loc.lng.toFixed(3)}`}
 catch(e){try{const c=JSON.parse(localStorage.getItem('mg_d'));if(c&&c.D&&c.loc.lat==loc.lat&&c.loc.lng==loc.lng){D=c.D;$('#sub').textContent='Offline: ultimi dati salvati'}else throw 0}catch(x){$('#sub').textContent='Nessuna connessione: servono i dati almeno una volta.';return}}
 render()}
@@ -104,7 +112,7 @@ function setLoc(la,lo){if(isNaN(la)||isNaN(lo)||Math.abs(la)>90||Math.abs(lo)>18
 $('#la').value=loc.lat;$('#lo').value=loc.lng;
 $('#set').onclick=()=>{try{localStorage.setItem('mg_man','1')}catch(e){}setLoc(parseFloat($('#la').value.replace(',','.')),parseFloat($('#lo').value.replace(',','.')))};
 $('#gps').onclick=()=>{try{localStorage.removeItem('mg_man')}catch(e){}return navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>setLoc(+p.coords.latitude.toFixed(4),+p.coords.longitude.toFixed(4)),er=>alert(!window.isSecureContext?'Il GPS funziona solo se la pagina è su un indirizzo https (non da file aperto sul telefono).':er.code==1?'Permesso negato: in Chrome tocca il lucchetto accanto all’indirizzo → Autorizzazioni → Posizione → Consenti. Poi riprova.':er.code==3?'Il GPS ci mette troppo: esci all’aperto o attiva la Posizione del telefono e riprova.':'Posizione non disponibile: attiva la Posizione nelle impostazioni del telefono.'),{enableHighAccuracy:true,timeout:20000}):alert('GPS non disponibile')};
-$('#app').onclick=e=>{const t=e.target;if(t.dataset.d!=null){day=+t.dataset.d;render()}if(t.dataset.s){sp=t.dataset.s;render()}};
+$('#app').onclick=e=>{const t=e.target.closest('[data-d],[data-s]');if(!t)return;if(t.dataset.d!=null){day=+t.dataset.d;render()}if(t.dataset.s){sp=t.dataset.s;render()}};
 const man=()=>{try{return localStorage.getItem('mg_man')=='1'}catch(e){return 0}};
 function auto(){if(man()||!navigator.geolocation)return load();navigator.geolocation.getCurrentPosition(p=>{const la=+p.coords.latitude.toFixed(3),lo=+p.coords.longitude.toFixed(3),dk=Math.hypot((la-loc.lat)*111,(lo-loc.lng)*111*Math.cos(la*R));if(dk>1)setLoc(la,lo);else load()},()=>load(),{timeout:8000,maximumAge:3e5})}
 auto();setInterval(render,6e4);setInterval(auto,9e5);document.addEventListener('visibilitychange',()=>{if(!document.hidden)auto()});
